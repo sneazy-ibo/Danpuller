@@ -20,6 +20,10 @@ jobs:
           # Fetch contributors
           CONTRIBUTORS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/repos/rebelonion/Dantotsu/contributors)
 
+          # Debugging: print contributors
+          echo "Contributors JSON:"
+          echo "$CONTRIBUTORS"
+
           # Initialize message
           MESSAGE="Contributors Information:\n"
 
@@ -30,11 +34,20 @@ jobs:
 
             # Fetch user details
             USER_DETAILS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/users/$LOGIN)
+            
+            # Debugging: print user details
+            echo "User Details for $LOGIN:"
+            echo "$USER_DETAILS"
+
             NICKNAME=$(echo "$USER_DETAILS" | jq -r '.name // "N/A"')
 
             # Append to message
             MESSAGE="$MESSAGE\nNickname: $NICKNAME, Login: $LOGIN, Commits: $COMMITS"
           done
 
+          # Debugging: print message before sending to Discord
+          echo "Final Message:"
+          echo -e "$MESSAGE"
+
           # Send message to Discord webhook
-          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$MESSAGE\"}" $DISCORD_WEBHOOK
+          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$(echo -e "$MESSAGE")\"}" $DISCORD_WEBHOOK
