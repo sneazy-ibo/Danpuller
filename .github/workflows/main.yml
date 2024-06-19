@@ -12,67 +12,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '14'
-
-      - name: Install dependencies
-        run: npm install axios
-
       - name: Fetch Authors Info and Send to Webhook
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          node << 'EOF'
-          const axios = require('axios');
+          # Fetch contributors
+          CONTRIBUTORS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/repos/rebelonion/Dantotsu/contributors)
 
-          const repoOwner = 'rebelonion';
-          const repoName = 'Dantotsu';
+          # Initialize message
+          MESSAGE="Contributors Information:\n"
 
-          const githubToken = process.env.GH_TOKEN;
-          const discordWebhookUrl = process.env.DISCORD_WEBHOOK;
+          # Process each contributor
+          echo "$CONTRIBUTORS" | jq -c '.[]' | while read -r contributor; do
+            LOGIN=$(echo "$contributor" | jq -r '.login')
+            COMMITS=$(echo "$contributor" | jq -r '.contributions')
 
-          async function getContributors() {
-            const contributorsUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contributors`;
-            const response = await axios.get(contributorsUrl, {
-              headers: {
-                'Authorization': `token ${githubToken}`
-              }
-            });
-            return response.data;
-          }
+            # Fetch user details
+            USER_DETAILS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/users/$LOGIN)
+            NICKNAME=$(echo "$USER_DETAILS" | jq -r '.name // "N/A"')
 
-          async function getUserDetails(username) {
-            const userUrl = `https://api.github.com/users/${username}`;
-            const response = await axios.get(userUrl, {
-              headers: {
-                'Authorization': `token ${githubToken}`
-              }
-            });
-            return response.data;
-          }
+            # Append to message
+            MESSAGE="$MESSAGE\nNickname: $NICKNAME, Login: $LOGIN, Commits: $COMMITS"
+          done
 
-          async function sendToDiscord(message) {
-            await axios.post(discordWebhookUrl, {
-              content: message
-            });
-          }
-
-          async function main() {
-            try {
-              const contributors = await getContributors();
-              let message = 'Contributors Information:\\n';
-              for (const contributor of contributors) {
-                const userDetails = await getUserDetails(contributor.login);
-                message += `Nickname: ${userDetails.name || 'N/A'}, Login: ${userDetails.login}, Commits: ${contributor.contributions}\\n`;
-              }
-              await sendToDiscord(message);
-            } catch (error) {
-              console.error('Error fetching data:', error);
-            }
-          }
-
-          main();
-          EOF
+          # Send message to Discord webhook
+          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$MESSAGE\"}" $DISCORD_WEBHOOK
