@@ -17,8 +17,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          # Debugging: Print GitHub token to ensure it's set correctly
+          echo "GitHub Token: $GH_TOKEN"
+          
+          # Ensure GitHub token is available
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Error: GitHub token is not set."
+            exit 1
+          fi
+
           # Fetch contributors
           CONTRIBUTORS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/repos/rebelonion/Dantotsu/contributors)
+
+          # Check for authentication errors
+          if echo "$CONTRIBUTORS" | grep -q 'Bad credentials'; then
+            echo "Error: Bad credentials. Please check your GitHub token."
+            exit 1
+          fi
 
           # Debugging: print contributors
           echo "Contributors JSON:"
