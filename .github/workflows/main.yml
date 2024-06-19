@@ -1,0 +1,78 @@
+name: Fetch Authors Info
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  fetch-authors-info:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install axios
+
+      - name: Fetch Authors Info and Send to Webhook
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          node << 'EOF'
+          const axios = require('axios');
+
+          const repoOwner = 'rebelonion';
+          const repoName = 'Dantotsu';
+
+          const githubToken = process.env.GH_TOKEN;
+          const discordWebhookUrl = process.env.DISCORD_WEBHOOK;
+
+          async function getContributors() {
+            const contributorsUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contributors`;
+            const response = await axios.get(contributorsUrl, {
+              headers: {
+                'Authorization': `token ${githubToken}`
+              }
+            });
+            return response.data;
+          }
+
+          async function getUserDetails(username) {
+            const userUrl = `https://api.github.com/users/${username}`;
+            const response = await axios.get(userUrl, {
+              headers: {
+                'Authorization': `token ${githubToken}`
+              }
+            });
+            return response.data;
+          }
+
+          async function sendToDiscord(message) {
+            await axios.post(discordWebhookUrl, {
+              content: message
+            });
+          }
+
+          async function main() {
+            try {
+              const contributors = await getContributors();
+              let message = 'Contributors Information:\\n';
+              for (const contributor of contributors) {
+                const userDetails = await getUserDetails(contributor.login);
+                message += `Nickname: ${userDetails.name || 'N/A'}, Login: ${userDetails.login}, Commits: ${contributor.contributions}\\n`;
+              }
+              await sendToDiscord(message);
+            } catch (error) {
+              console.error('Error fetching data:', error);
+            }
+          }
+
+          main();
+          EOF
