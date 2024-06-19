@@ -2,6 +2,8 @@ name: Fetch Authors Info
 
 on:
   push:
+    branches:
+      - main  # Adjust branch name if necessary
   workflow_dispatch:
 
 jobs:
@@ -17,52 +19,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Debugging: Print GitHub token to ensure it's set correctly
-          echo "GitHub Token: $GH_TOKEN"
-          
-          # Ensure GitHub token is available
-          if [ -z "$GH_TOKEN" ]; then
-            echo "Error: GitHub token is not set."
-            exit 1
-          fi
-
-          # Fetch contributors
           CONTRIBUTORS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/repos/rebelonion/Dantotsu/contributors)
 
-          # Check for authentication errors
-          if echo "$CONTRIBUTORS" | grep -q 'Bad credentials'; then
-            echo "Error: Bad credentials. Please check your GitHub token."
-            exit 1
-          fi
-
-          # Debugging: print contributors
-          echo "Contributors JSON:"
-          echo "$CONTRIBUTORS"
-
-          # Initialize message
           MESSAGE="Contributors Information:\n"
 
-          # Process each contributor
           echo "$CONTRIBUTORS" | jq -c '.[]' | while read -r contributor; do
             LOGIN=$(echo "$contributor" | jq -r '.login')
             COMMITS=$(echo "$contributor" | jq -r '.contributions')
 
-            # Fetch user details
             USER_DETAILS=$(curl -H "Authorization: token $GH_TOKEN" -s https://api.github.com/users/$LOGIN)
-            
-            # Debugging: print user details
-            echo "User Details for $LOGIN:"
-            echo "$USER_DETAILS"
-
             NICKNAME=$(echo "$USER_DETAILS" | jq -r '.name // "N/A"')
 
-            # Append to message
             MESSAGE="$MESSAGE\nNickname: $NICKNAME, Login: $LOGIN, Commits: $COMMITS"
           done
 
-          # Debugging: print message before sending to Discord
-          echo "Final Message:"
-          echo -e "$MESSAGE"
-
-          # Send message to Discord webhook
-          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$(echo -e "$MESSAGE")\"}" $DISCORD_WEBHOOK
+          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$MESSAGE\"}" $DISCORD_WEBHOOK
